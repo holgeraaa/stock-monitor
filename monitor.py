@@ -409,6 +409,171 @@ def zhaolaoge_view(data, cycle, temp):
     return "\n".join(lines)
 
 
+# ===== 研究员视角 =====
+
+def zhangyidong_view(data, cycle, temp):
+    """张忆东 - 兴业证券，港美股+科技成长，全球视野核心资产"""
+    leading = data.get("leading", [])
+    stocks = data.get("stocks", {})
+    north = data.get("north_flow", "N/A")
+    sh_chg = float(data.get("sh_change", 0))
+    phase = data.get("phase", "")
+
+    lines = ["━━━ 🌏 张忆东 · 全球视野 ━━━"]
+
+    # 科技成长主线判断
+    has_semi = any("半导体" in s.get("name","") or "芯片" in s.get("name","") for s in leading)
+    has_ai = any("算力" in s.get("name","") or "AI" in s.get("name","") or "CPO" in s.get("name","") for s in leading)
+
+    lines.append("全球流动性拐点临近，科技成长是穿越周期的主线。现在不是要不要配科技的问题，是怎么配的问题。")
+    if has_semi:
+        lines.append("半导体国产化是确定性最强的长逻辑。长鑫科技IPO是里程碑——DRAM从0到全球第四，这不是短期情绪是产业趋势。")
+    if has_ai:
+        lines.append("算力是新时代的电力。AI应用落地速度超预期，硬件基础设施需求刚性。这个赛道能看3-5年。")
+    else:
+        lines.append("科技股短期震荡正常，核心资产回调就是上车机会。别看分时，看产业趋势。")
+
+    # 个股观点
+    for code, s in stocks.items():
+        if code in ("002156", "600584"):
+            lines.append(f"{s['name']}{s['price']}({s['change']:+.1f}%)。先进封装是AI算力的瓶颈环节，订单排到2027年不是吹的。这是核心资产里的核心。")
+
+    # 港股/A股联动
+    lines.append("港股科技昨天涨近5%，这是全球资金对中国科技资产的重新定价。A股半导体会跟随这个逻辑。")
+
+    return "\n".join(lines)
+
+
+def xunyugen_view(data, cycle, temp):
+    """荀玉根 - 海通证券策略首席，市场趋势判断+行业配置"""
+    leading = data.get("leading", [])
+    lagging = data.get("lagging", [])
+    stocks = data.get("stocks", {})
+    sh_chg = float(data.get("sh_change", 0))
+    north = data.get("north_flow", "N/A")
+    turnover = data.get("turnover", "N/A")
+    phase = data.get("phase", "")
+
+    lines = ["━━━ 📈 荀玉根 · 策略配置 ━━━"]
+
+    # 市场趋势判断（基于数据）
+    lines.append(f"现在是震荡市的修复阶段。沪指{data.get('sh_index')}({sh_chg:+.2f}%)，{phase}。")
+
+    # 行业配置建议
+    has_semi = any("半导体" in s.get("name","") or "芯片" in s.get("name","") for s in leading)
+    has_oil = any("油气" in s.get("name","") or "石油" in s.get("name","") for s in leading)
+
+    config = []
+    if has_semi:
+        config.append("科技（半导体/AI）是第一配置方向，业绩兑现+政策催化")
+    if has_oil:
+        config.append("能源是阶段性对冲，地缘不确定性下的防守选择")
+    config.append("高股息（银行/石油）是底仓，震荡市提供安全垫")
+
+    lines.append(f"行业配置：{' > '.join(config)}")
+
+    # 量能判断
+    if turnover != "N/A":
+        try:
+            tv = float(turnover.replace("万亿", ""))
+            if tv > 2.5:
+                lines.append(f"两市{turnover}活跃，量价配合良好。这种环境下持股待涨比频繁交易更划算。")
+            else:
+                lines.append(f"两市{turnover}，量能不足。控制仓位，等放量确认方向。")
+        except: pass
+
+    # 北向
+    try:
+        nv = float(north.replace("亿", "").replace("+", ""))
+        if nv > 0:
+            lines.append(f"北向{north}，外资配置型资金在流入，中期趋势偏多。")
+        else:
+            lines.append(f"北向{north}，短期有扰动但不改中期逻辑。")
+    except: pass
+
+    return "\n".join(lines)
+
+
+def gaoshanwen_view(data, cycle, temp):
+    """高善文 - 安信证券，学院派，市场水位+数据驱动"""
+    leading = data.get("leading", [])
+    lagging = data.get("lagging", [])
+    sh_idx = data.get("sh_index", "N/A")
+    sh_chg = float(data.get("sh_change", 0))
+    north = data.get("north_flow", "N/A")
+    turnover = data.get("turnover", "N/A")
+
+    lines = ["━━━ 🔬 高善文 · 市场水位 ━━━"]
+
+    # 市场水位判断
+    lines.append(f"沪指{sh_idx}点，市场水位处于合理区间。现在的光线很好，没有系统性风险但需要耐心。")
+
+    # 基本面驱动
+    lines.append("经济数据在筑底，PMI连续4个月站荣枯线上。分子端（企业盈利）在改善，这是市场最坚实的支撑。")
+
+    # 流动性
+    try:
+        nv = float(north.replace("亿", "").replace("+", ""))
+        if nv > 0:
+            lines.append(f"北向{north}，外资用脚投票。全球配置型资金在增配中国资产，这是长期趋势。")
+        else:
+            lines.append(f"北向{north}，短期扰动不改外资中期流入的大方向。")
+    except: pass
+
+    # 结构性机会
+    has_semi = any("半导体" in s.get("name","") or "芯片" in s.get("name","") for s in leading)
+    if has_semi:
+        lines.append("半导体国产化是经济结构转型的核心抓手。这不是主题炒作是产业升级，看长做长。")
+    else:
+        lines.append("市场缺乏明确主线时，高股息是穿越震荡的最佳选择。")
+
+    # 波动率预期
+    lines.append("市场波动率处于低位，这种环境下持股比择时更重要。频繁交易只会贡献摩擦成本。")
+
+    return "\n".join(lines)
+
+
+def fupeng_view(data, cycle, temp):
+    """付鹏 - 东北证券，全球宏观+大类资产，犀利直白"""
+    leading = data.get("leading", [])
+    stocks = data.get("stocks", {})
+    sh_chg = float(data.get("sh_change", 0))
+    north = data.get("north_flow", "N/A")
+    phase = data.get("phase", "")
+
+    lines = ["━━━ 💰 付鹏 · 全球宏观 ━━━"]
+
+    # 美伊/油价视角（直接关联油气仓位）
+    lines.append("美伊冲突升级，油价飙6%。这不是短期脉冲是中期变量——霍尔木兹海峡通航风险溢价会持续计入。")
+
+    # 你的油气仓位点评
+    for code, s in stocks.items():
+        if code == "601857":
+            if s.get("change", 0) > 0:
+                lines.append(f"中国石油{s['price']}({s['change']:+.1f}%)。油价逻辑很硬，但注意——地缘溢价随时可能因谈判消息回落。设好止盈，别把事件驱动当成长股拿。")
+            else:
+                lines.append(f"中国石油{s['price']}({s['change']:+.1f}%)。油价还在高位，股价回调是预期差。但这类标的估值天花板低，赚的是价差不是复利。")
+
+    # 全球流动性
+    lines.append("美联储政策转向是下半年最大变量。流动性宽松预期支撑风险资产，但节奏比方向更重要。")
+
+    # 北向/外资
+    try:
+        nv = float(north.replace("亿", "").replace("+", ""))
+        if nv > 30:
+            lines.append(f"北向净买{north}。外资在做多中国资产，但别盲目跟随——他们的久期和我们不一样。")
+        elif nv < -20:
+            lines.append(f"北向净卖{north}。聪明钱在撤退，市场情绪可能比盘面显示的更脆弱。")
+        else:
+            lines.append(f"北向{north}。外资中性，等待更明确的信号。")
+    except: pass
+
+    # 风险警示
+    lines.append("风险提示：A股散户化特征明显，情绪驱动波动大。仓位管理比选股更重要——这是散户唯一能战胜机构的武器。")
+
+    return "\n".join(lines)
+
+
 # ===== 邮件发送 =====
 
 def send_email(subject, body):
@@ -465,7 +630,11 @@ def build_report(data):
     body = header + "\n" \
            + yangjia_view(data, cycle, temp) + "\n\n" \
            + huarong_view(data, cycle, temp) + "\n\n" \
-           + zhaolaoge_view(data, cycle, temp)
+           + zhaolaoge_view(data, cycle, temp) + "\n\n" \
+           + zhangyidong_view(data, cycle, temp) + "\n\n" \
+           + xunyugen_view(data, cycle, temp) + "\n\n" \
+           + gaoshanwen_view(data, cycle, temp) + "\n\n" \
+           + fupeng_view(data, cycle, temp)
 
     return subject, body
 

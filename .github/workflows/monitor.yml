@@ -2,13 +2,8 @@ name: A股盯盘推送
 
 on:
   schedule:
-    # 北京时间 9:07, 10:07, 11:07, 13:07, 14:07 (UTC+8 → UTC 需要-8)
-    # GitHub Actions 使用 UTC 时间
-    - cron: '7 1 * * 1-5'   # 9:07 CST
-    - cron: '7 2 * * 1-5'   # 10:07 CST
-    - cron: '7 3 * * 1-5'   # 11:07 CST
-    - cron: '7 5 * * 1-5'   # 13:07 CST
-    - cron: '7 6 * * 1-5'   # 14:07 CST
+    # 高频触发 - 每5分钟检查一次，脚本内部判断交易时段
+    - cron: '*/5 1-6 * * 1-5'  # UTC 1:00-6:59 = 北京时间 9:00-14:59
   workflow_dispatch:
 
 jobs:
@@ -29,6 +24,6 @@ jobs:
       - name: Run monitor
         run: python monitor.py
 
-      - name: Log status
+      - name: Status
         if: always()
-        run: echo "盯盘任务完成 - $(date -u)"
+        run: echo "盯盘完成 $(TZ='Asia/Shanghai' date)"

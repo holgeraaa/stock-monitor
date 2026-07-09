@@ -17,8 +17,8 @@ WORKFLOW="monitor.yml"
 H=$(TZ=Asia/Shanghai date +%H); M=$(TZ=Asia/Shanghai date +%M); D=$(TZ=Asia/Shanghai date +%u)
 TRADING=false
 if [ "$D" -le 5 ]; then
-  if { [ "$H" = 9 ] && [ "$M" -ge 30 ]; } || [ "$H" = 10 ] \
-     || { [ "$H" = 11 ] && [ "$M" -le 30 ]; } || [ "$H" = 13 ] || [ "$H" = 14 ]; then
+  if { [ "$H" -eq 9 ] && [ "$M" -ge 30 ]; } || [ "$H" -eq 10 ] \
+     || { [ "$H" -eq 11 ] && [ "$M" -le 30 ]; } || [ "$H" -eq 13 ] || [ "$H" -eq 14 ]; then
     TRADING=true
   fi
 fi

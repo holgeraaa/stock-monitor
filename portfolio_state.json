@@ -1,63 +1,50 @@
 {
-  "init_time": "2026-07-09 13:52",
+  "init_time": "2026-07-09 14:05",
   "baseline_prices": {
     "002156": 68.2,
     "600584": 95.3,
-    "601857": 12.52
+    "601857": 12.52,
+    "159949": 1.98
+  },
+  "user": {
+    "name": "老大",
+    "positions": {
+      "159949": {
+        "name": "创业板50ETF",
+        "shares": 17000,
+        "cost": 1.98
+      }
+    }
   },
   "traders": {
     "yangjia": {
       "name": "炒股养家",
       "profile": "aggressive",
       "cash": 6830,
-      "last_cycle": "主升",
+      "last_cycle": "修复",
       "positions": {
-        "002156": {
-          "name": "通富微电",
-          "shares": 200,
-          "cost": 68.2
-        },
-        "600584": {
-          "name": "长电科技",
-          "shares": 100,
-          "cost": 95.3
-        }
+        "002156": {"name": "通富微电", "shares": 200, "cost": 68.2},
+        "600584": {"name": "长电科技", "shares": 100, "cost": 95.3}
       }
     },
     "huarong": {
       "name": "花荣",
       "profile": "balanced",
-      "cash": 3935.0,
-      "last_cycle": "主升",
+      "cash": 6455,
+      "last_cycle": "修复",
       "positions": {
-        "601857": {
-          "name": "中国石油",
-          "shares": 1700,
-          "cost": 12.529411764705882
-        },
-        "600584": {
-          "name": "长电科技",
-          "shares": 50,
-          "cost": 95.3
-        }
+        "601857": {"name": "中国石油", "shares": 1500, "cost": 12.52},
+        "600584": {"name": "长电科技", "shares": 50, "cost": 95.3}
       }
     },
     "zhaolaoge": {
       "name": "赵老哥",
       "profile": "disciplined",
       "cash": 10240,
-      "last_cycle": "主升",
+      "last_cycle": "修复",
       "positions": {
-        "002156": {
-          "name": "通富微电",
-          "shares": 150,
-          "cost": 68.2
-        },
-        "600584": {
-          "name": "长电科技",
-          "shares": 100,
-          "cost": 95.3
-        }
+        "002156": {"name": "通富微电", "shares": 150, "cost": 68.2},
+        "600584": {"name": "长电科技", "shares": 100, "cost": 95.3}
       }
     }
   }

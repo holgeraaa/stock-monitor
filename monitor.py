@@ -208,7 +208,7 @@ def fetch_market_data():
             params={
                 "fltt": 2,
                 "fields": "f2,f3,f4,f5,f6,f7,f15,f16,f17,f18,f12,f14",
-                "secids": "1.000001,0.399001,0.399006,1.601857,1.600584,0.002156",
+                "secids": "1.000001,0.399001,0.399006,1.601857,1.600584,0.002156,0.159949",
             },
             timeout=10,
             headers={"User-Agent": "Mozilla/5.0"}
@@ -234,7 +234,7 @@ def fetch_market_data():
                     data["sz_change"] = f"{change_pct:+.2f}" if change_pct else "0"
                 elif code == "399006":
                     data["cyb_index"] = f"{price:.0f}" if price else "N/A"
-                elif code in ["601857", "600584", "002156"]:
+                elif code in ["601857", "600584", "002156", "159949"]:
                     detail = {
                         "name": name, "price": price, "change": change_pct,
                         "high": high, "low": low, "turnover": turnover
@@ -788,6 +788,54 @@ def sim_portfolio_view(stocks_data, cycle):
     return "\n".join(lines)
 
 
+# ===== 用户持仓 + 七方建议 =====
+
+def user_holding_view(data, cycle, temp):
+    """用户持仓(159949创业板50ETF 17000份) + 七方建议"""
+    state = load_state()
+    user = state.get("user", {}) if state else {}
+    positions = user.get("positions", {})
+
+    lines = ["━━━ 👤 你的持仓 | 159949创业板50ETF ━━━"]
+
+    # 持仓盈亏
+    for code, pos in positions.items():
+        current = data.get("stocks", {}).get(code, {})
+        price = current.get("price", 0) or pos["cost"]
+        chg = current.get("change", 0)
+        market_value = pos["shares"] * price
+        cost_value = pos["shares"] * pos["cost"]
+        pnl = market_value - cost_value
+        pnl_pct = (price / pos["cost"] - 1) * 100
+        p_sign = "+" if pnl >= 0 else ""
+
+        lines.append(f"持有{pos['shares']}份 @成本{pos['cost']:.2f} → 现价{price:.3f}({chg:+.2f}%)")
+        lines.append(f"市值{market_value:.0f}元 | 盈亏{p_sign}{pnl:.0f}元({p_sign}{pnl_pct:.2f}%)")
+
+    # 七方建议
+    etf_chg = data.get("stocks", {}).get("159949", {}).get("change", 0)
+    cyb = data.get("cyb_index", "N/A")
+    sh_chg = float(data.get("sh_change", 0))
+
+    advice_map = {
+        "yangjia": f"炒股养家：创业板弹性大，{etf_chg:+.1f}%不算极端。情绪{cycle}，仓位不重就拿着，别在分歧日割肉。",
+        "huarong": f"花荣：创业板50是进攻品种不是底仓。现在{etf_chg:+.1f}%，没破位就持有，但别加仓——这只ETF波动比你那几个主板票大得多。",
+        "zhaolaoge": f"赵老哥：创业板50不是龙头是篮子。想做弹性可以，但设好止损位，跌破成本3%就走，别扛。",
+        "zhangyidong": f"张忆东：创业板50代表新经济成长，中长期逻辑在。但短期受美联储流动性影响大，{etf_chg:+.1f}%正常波动，逢跌分批比一把梭舒服。",
+        "xunyugen": f"荀玉根：创业板50仓位建议控制在总资产20%以内。当前{etf_chg:+.1f}%，如果仓位不重可以持有，权重股企稳后创业板弹性会出来。",
+        "gaoshanwen": f"高善文：创业板估值分位不低，但盈利在改善。持有可以，别追高——这种高贝塔品种最适合的是低位布局不是高位追。",
+        "fupeng": f"付鹏：创业板50对流动性最敏感。美联储转向前波动会放大。你这1.7万份也就3万多块，亏得起就拿着，但别把它当稳健资产。",
+        "laoai": f"老艾：创业板ETF散户最爱买，因为便宜门槛低。但记住——它涨起来猛跌起来也猛。{etf_chg:+.1f}%今天还行，设个止盈点别贪。",
+    }
+
+    lines.append("")
+    lines.append("📋 七方建议：")
+    for key, adv in advice_map.items():
+        lines.append(f"  · {adv}")
+
+    return "\n".join(lines)
+
+
 # ===== 邮件发送 =====
 
 def send_email(subject, body):
@@ -843,6 +891,7 @@ def build_report(data):
 
     body = header + "\n" \
            + sim_portfolio_view(data.get("stocks", {}), cycle) + "\n\n" \
+           + user_holding_view(data, cycle, temp) + "\n\n" \
            + yangjia_view(data, cycle, temp) + "\n\n" \
            + huarong_view(data, cycle, temp) + "\n\n" \
            + zhaolaoge_view(data, cycle, temp) + "\n\n" \

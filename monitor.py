@@ -17,42 +17,96 @@ QQ_EMAIL = "51568894@qq.com"
 QQ_AUTH_CODE = "tgbicxdhkooibiad"
 TO_EMAIL = "51568894@qq.com"
 
-# ===== 模拟仓位（每个交易员3万元） =====
-# 初始建仓价基于公开信息估算，实盘需调整
+# ===== 模拟仓位（每个交易员3万元，从13:52时点开始） =====
 SIM_CAPITAL = 30000
-TRADER_POSITIONS = {
-    "yangjia": {  # 炒股养家 - 主线核心
-        "name": "炒股养家",
-        "cash": 5000,
-        "positions": {
-            "002156": {"name": "通富微电", "shares": 300, "cost": 66.5},
-            "600584": {"name": "长电科技", "shares": 150, "cost": 92.0},
-        }
-    },
-    "huarong": {  # 花荣 - 盲点套利+高股息
-        "name": "花荣",
-        "cash": 6000,
-        "positions": {
-            "601857": {"name": "中国石油", "shares": 1500, "cost": 12.1},
-            "600584": {"name": "长电科技", "shares": 100, "cost": 93.0},
-        }
-    },
-    "zhaolaoge": {  # 赵老哥 - 只做龙头
-        "name": "赵老哥",
-        "cash": 3000,
-        "positions": {
-            "002156": {"name": "通富微电", "shares": 200, "cost": 67.0},
-            "600584": {"name": "长电科技", "shares": 100, "cost": 94.0},
-        }
-    },
-}
+STATE_FILE = "portfolio_state.json"
+CYCLE_ORDER = {"冰点": 0, "退潮": 1, "分歧": 2, "修复": 3, "主升": 4}
 
-# 记录每个交易员当日盈亏历史（用于计算当日收益率）
-TRADER_DAILY_PNL = {}  # trader_key -> 当日盈亏（元）
+import json
+import os
 
-def calc_trader_pnl(trader_key, stocks_data):
+def load_state():
+    """加载模拟仓位状态"""
+    if os.path.exists(STATE_FILE):
+        with open(STATE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return None
+
+def save_state(state):
+    """保存模拟仓位状态"""
+    with open(STATE_FILE, "w", encoding="utf-8") as f:
+        json.dump(state, f, ensure_ascii=False, indent=2)
+
+def simulate_decision(trader_key, trader, cycle, stocks_data):
+    """
+    模拟交易员加仓/减仓决策
+    返回: (决策文本, 是否变更)
+    """
+    last_cycle = trader.get("last_cycle", "分歧")
+    last_level = CYCLE_ORDER.get(last_cycle, 2)
+    curr_level = CYCLE_ORDER.get(cycle, 2)
+
+    decision = "持仓不动"
+    changed = False
+
+    # 情绪升温 → 加仓
+    if curr_level > last_level and trader["cash"] > 1000:
+        # 选最强持仓加仓，或用现金买首选标的
+        best_code = None
+        best_chg = -100
+        for code, pos in trader["positions"].items():
+            chg = stocks_data.get(code, {}).get("change", 0)
+            if chg > best_chg:
+                best_chg = chg
+                best_code = code
+
+        if best_code:
+            price = stocks_data.get(best_code, {}).get("price", 0) or trader["positions"][best_code]["cost"]
+            buy_amount = min(trader["cash"] * 0.5, 5000)
+            shares = (buy_amount // price // 100) * 100  # 整百股
+            if shares >= 100:
+                cost = shares * price
+                trader["cash"] -= cost
+                pos = trader["positions"][best_code]
+                # 更新加权成本
+                total_shares = pos["shares"] + shares
+                pos["cost"] = (pos["shares"] * pos["cost"] + cost) / total_shares
+                pos["shares"] = total_shares
+                decision = f"加仓 | {pos['name']}买{shares}股@{price:.2f}"
+                changed = True
+            else:
+                decision = "持仓不动(现金不足1手)"
+
+    # 情绪降温 → 减仓
+    elif curr_level < last_level:
+        # 卖最弱持仓的30%
+        weak_code = None
+        weak_chg = 100
+        for code, pos in trader["positions"].items():
+            chg = stocks_data.get(code, {}).get("change", 0)
+            if chg < weak_chg and pos["shares"] >= 100:
+                weak_chg = chg
+                weak_code = code
+
+        if weak_code:
+            price = stocks_data.get(weak_code, {}).get("price", 0) or trader["positions"][weak_code]["cost"]
+            pos = trader["positions"][weak_code]
+            sell_shares = int(pos["shares"] * 0.3 / 100) * 100
+            if sell_shares >= 100:
+                trader["cash"] += sell_shares * price
+                pos["shares"] -= sell_shares
+                decision = f"减仓 | {pos['name']}卖{sell_shares}股@{price:.2f}"
+                changed = True
+                if pos["shares"] == 0:
+                    del trader["positions"][weak_code]
+
+    trader["last_cycle"] = cycle
+    return decision, changed
+
+
+def calc_trader_pnl(trader_key, stocks_data, state):
     """计算交易员当前持仓盈亏"""
-    trader = TRADER_POSITIONS.get(trader_key)
+    trader = state["traders"].get(trader_key)
     if not trader:
         return None
 
@@ -63,7 +117,6 @@ def calc_trader_pnl(trader_key, stocks_data):
         current = stocks_data.get(code, {})
         price = current.get("price", 0)
         if not price:
-            # 用成本价估算
             price = pos["cost"]
 
         market_value = pos["shares"] * price
@@ -698,21 +751,37 @@ def laoai_view(data, cycle, temp):
 
 # ===== 模拟仓位汇总 =====
 
-def sim_portfolio_view(stocks_data):
-    """生成三个交易员的模拟仓位盈亏汇总"""
-    lines = ["━━━ 💼 模拟仓位实况（每人均3万） ━━━"]
+def sim_portfolio_view(stocks_data, cycle):
+    """生成三个交易员的模拟仓位盈亏汇总 + 加仓减仓决策"""
+    state = load_state()
+    if not state:
+        return "━━━ 💼 模拟仓位 ━━━\n状态文件缺失"
+
+    lines = [f"━━━ 💼 模拟仓位实况（每人均3万 | 起始{state.get('init_time','')}） ━━━"]
+
+    decisions = {}
+    for trader_key in ["yangjia", "huarong", "zhaolaoge"]:
+        trader = state["traders"].get(trader_key)
+        if not trader:
+            continue
+        decision, changed = simulate_decision(trader_key, trader, cycle, stocks_data)
+        decisions[trader_key] = decision
+
+    # 回写状态（加仓减仓已生效）
+    save_state(state)
 
     for trader_key in ["yangjia", "huarong", "zhaolaoge"]:
-        result = calc_trader_pnl(trader_key, stocks_data)
+        result = calc_trader_pnl(trader_key, stocks_data, state)
         if not result:
             continue
 
         pnl_sign = "+" if result["total_pnl"] >= 0 else ""
         lines.append(f"\n【{result['name']}】 总资产{result['total_value']:.0f}元 ({pnl_sign}{result['total_pnl']:.0f}元, {pnl_sign}{result['total_pnl_pct']:.2f}%)")
+        lines.append(f"  📌 操作: {decisions[trader_key]}")
 
         for pos in result["positions"]:
             p_sign = "+" if pos["pnl"] >= 0 else ""
-            lines.append(f"  {pos['name']}({pos['code']}): {pos['shares']}股 @成本{pos['cost']} → 现价{pos['price']} | 市值{pos['market_value']:.0f} | {p_sign}{pos['pnl']:.0f}元({p_sign}{pos['pnl_pct']:.1f}%)")
+            lines.append(f"  {pos['name']}({pos['code']}): {pos['shares']}股 @成本{pos['cost']:.2f} → 现价{pos['price']:.2f} | 市值{pos['market_value']:.0f} | {p_sign}{pos['pnl']:.0f}元({p_sign}{pos['pnl_pct']:.1f}%)")
 
         lines.append(f"  现金: {result['cash']:.0f}元")
 
@@ -773,7 +842,7 @@ def build_report(data):
 """
 
     body = header + "\n" \
-           + sim_portfolio_view(data.get("stocks", {})) + "\n\n" \
+           + sim_portfolio_view(data.get("stocks", {}), cycle) + "\n\n" \
            + yangjia_view(data, cycle, temp) + "\n\n" \
            + huarong_view(data, cycle, temp) + "\n\n" \
            + zhaolaoge_view(data, cycle, temp) + "\n\n" \

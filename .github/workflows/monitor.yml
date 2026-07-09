@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -24,6 +26,11 @@ jobs:
       - name: Run monitor
         run: python monitor.py
 
-      - name: Status
+      - name: Commit state
         if: always()
-        run: echo "盯盘完成 $(TZ='Asia/Shanghai' date)"
+        run: |
+          git config user.email "monitor@github.com"
+          git config user.name "Monitor Bot"
+          git add portfolio_state.json
+          git commit -m "update portfolio state $(TZ='Asia/Shanghai' date '+%H:%M')" || echo "no changes"
+          git push || echo "push failed"

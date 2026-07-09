@@ -25,7 +25,11 @@ GitHub Actions 运行 monitor.py
 
 ## 外部定时器配置（自动每半小时推送必做）
 
-1. 打开 https://cron-job.org 注册，新建 job
+> **当前选定方案：小米手机 MacroDroid 自动化**（详见 `phone-trigger-guide.md`）。
+> 手机装 MacroDroid，定时 POST 调 GitHub dispatch 即可，关对话 App 也能推。
+> 备选：cron-job.org 云端定时（最稳）、或联想 T2 NAS 跑 Docker 容器（`nas-trigger/`）。
+
+1. 打开 https://cron-job.org 注册，新建 job（最省心、最可靠的云端方案）
 2. URL 填一个能触发本仓库 workflow 的中转地址（见下），或在本机 crontab 里跑 `trigger.sh`
 3. 频率：每 30 分钟；时间窗口：周一至周五 09:30–11:30 / 13:00–15:00（脚本内部也会再判一次交易时段）
 

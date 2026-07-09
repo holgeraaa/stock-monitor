@@ -8,9 +8,14 @@ import json
 import os
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime, time
+from datetime import datetime, time, timezone, timedelta
 import requests
 import hashlib
+
+# 北京时间时区（GitHub Actions 服务器在 UTC，必须显式指定）
+BEIJING_TZ = timezone(timedelta(hours=8))
+def now_beijing():
+    return datetime.now(BEIJING_TZ)
 
 # ===== 配置 =====
 QQ_EMAIL = "51568894@qq.com"
@@ -151,8 +156,8 @@ def calc_trader_pnl(trader_key, stocks_data, state):
 
 # ===== 交易时段判断 =====
 def is_trading_time():
-    """判断当前是否A股交易时段（周一至周五 9:30-11:30, 13:00-15:00）"""
-    now = datetime.now()
+    """判断当前是否A股交易时段（周一至周五 9:30-11:30, 13:00-15:00）北京时间"""
+    now = now_beijing()
     if now.weekday() >= 5:
         return False
     t = now.time()
@@ -161,8 +166,8 @@ def is_trading_time():
     return morning or afternoon
 
 def get_trading_phase():
-    """判断当前处于哪个交易阶段"""
-    now = datetime.now()
+    """判断当前处于哪个交易阶段（北京时间）"""
+    now = now_beijing()
     h = now.hour
     m = now.minute
     if h == 9 or (h == 10 and m < 15):
@@ -179,7 +184,7 @@ def get_trading_phase():
 # ===== 行情抓取 =====
 
 def fetch_market_data():
-    now = datetime.now()
+    now = now_beijing()
     data = {
         "time": now.strftime("%H:%M"),
         "date": now.strftime("%Y-%m-%d"),
@@ -905,8 +910,8 @@ def build_report(data):
 
 
 def main():
-    now = datetime.now()
-    print(f"[{now}] 盯盘启动 - 三方联席实时研判")
+    now = now_beijing()
+    print(f"[{now}] 盯盘启动 - 七方联席实时研判")
 
     if not is_trading_time():
         print("非交易时段，跳过。")

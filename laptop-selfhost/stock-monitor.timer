@@ -1,0 +1,15 @@
+[Unit]
+Description=每30分钟触发盯盘（交易时段内脚本会自行判断跳过）
+Wants=network-online.target
+After=network-online.target
+
+[Timer]
+# 开机 3 分钟后首次跑，之后每次跑完 30 分钟再跑一次
+OnBootSec=3min
+OnUnitActiveSec=30min
+Unit=stock-monitor.service
+# 笔记本若关机错过时段，开机后不补发历史（避免一开机连发）
+Persistent=false
+
+[Install]
+WantedBy=timers.target

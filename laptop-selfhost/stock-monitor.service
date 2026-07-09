@@ -1,0 +1,17 @@
+[Unit]
+Description=A股盯盘推送（自托管笔记本）
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=stockbot
+WorkingDirectory=/opt/stock-monitor
+ExecStart=/usr/bin/python3 /opt/stock-monitor/monitor.py
+StandardOutput=journal
+StandardError=journal
+# 如需飞书，取消下一行注释并填 webhook（仓库里 FEISHU_ONLY 亦可设 true 停发邮件）：
+# Environment=FEISHU_WEBHOOK=https://open.feishu.cn/open-apis/bot/v2/hook/xxxx
+
+[Install]
+WantedBy=multi-user.target

@@ -17,6 +17,85 @@ QQ_EMAIL = "51568894@qq.com"
 QQ_AUTH_CODE = "tgbicxdhkooibiad"
 TO_EMAIL = "51568894@qq.com"
 
+# ===== 模拟仓位（每个交易员3万元） =====
+# 初始建仓价基于公开信息估算，实盘需调整
+SIM_CAPITAL = 30000
+TRADER_POSITIONS = {
+    "yangjia": {  # 炒股养家 - 主线核心
+        "name": "炒股养家",
+        "cash": 5000,
+        "positions": {
+            "002156": {"name": "通富微电", "shares": 300, "cost": 66.5},
+            "600584": {"name": "长电科技", "shares": 150, "cost": 92.0},
+        }
+    },
+    "huarong": {  # 花荣 - 盲点套利+高股息
+        "name": "花荣",
+        "cash": 6000,
+        "positions": {
+            "601857": {"name": "中国石油", "shares": 1500, "cost": 12.1},
+            "600584": {"name": "长电科技", "shares": 100, "cost": 93.0},
+        }
+    },
+    "zhaolaoge": {  # 赵老哥 - 只做龙头
+        "name": "赵老哥",
+        "cash": 3000,
+        "positions": {
+            "002156": {"name": "通富微电", "shares": 200, "cost": 67.0},
+            "600584": {"name": "长电科技", "shares": 100, "cost": 94.0},
+        }
+    },
+}
+
+# 记录每个交易员当日盈亏历史（用于计算当日收益率）
+TRADER_DAILY_PNL = {}  # trader_key -> 当日盈亏（元）
+
+def calc_trader_pnl(trader_key, stocks_data):
+    """计算交易员当前持仓盈亏"""
+    trader = TRADER_POSITIONS.get(trader_key)
+    if not trader:
+        return None
+
+    total_value = trader["cash"]
+    position_detail = []
+
+    for code, pos in trader["positions"].items():
+        current = stocks_data.get(code, {})
+        price = current.get("price", 0)
+        if not price:
+            # 用成本价估算
+            price = pos["cost"]
+
+        market_value = pos["shares"] * price
+        cost_value = pos["shares"] * pos["cost"]
+        pnl = market_value - cost_value
+        pnl_pct = (price / pos["cost"] - 1) * 100
+
+        total_value += market_value
+        position_detail.append({
+            "code": code,
+            "name": pos["name"],
+            "shares": pos["shares"],
+            "cost": pos["cost"],
+            "price": price,
+            "market_value": market_value,
+            "pnl": pnl,
+            "pnl_pct": pnl_pct,
+        })
+
+    total_pnl = total_value - SIM_CAPITAL
+    total_pnl_pct = total_pnl / SIM_CAPITAL * 100
+
+    return {
+        "name": trader["name"],
+        "cash": trader["cash"],
+        "total_value": total_value,
+        "total_pnl": total_pnl,
+        "total_pnl_pct": total_pnl_pct,
+        "positions": position_detail,
+    }
+
+
 # ===== 交易时段判断 =====
 def is_trading_time():
     """判断当前是否A股交易时段（周一至周五 9:30-11:30, 13:00-15:00）"""
@@ -574,6 +653,72 @@ def fupeng_view(data, cycle, temp):
     return "\n".join(lines)
 
 
+# ===== 老艾（艾堂明） - 财经评论员，散户视角 =====
+
+def laoai_view(data, cycle, temp):
+    """老艾 - 独立财经评论员，微博大V，散户视角，接地气"""
+    leading = data.get("leading", [])
+    lagging = data.get("lagging", [])
+    stocks = data.get("stocks", {})
+    sh_chg = float(data.get("sh_change", 0))
+    north = data.get("north_flow", "N/A")
+    phase = data.get("phase", "")
+
+    lines = ["━━━ 📢 老艾 · 散户视角 ━━━"]
+
+    # 开盘/盘中白话解读
+    if sh_chg > 0.5:
+        lines.append(f"今天大盘{sh_chg:+.2f}%，红彤彤的。但别高兴太早——账户回本了吗？没回本就是假涨。")
+    elif sh_chg < -0.5:
+        lines.append(f"又绿了{sh_chg:+.2f}%？别慌，跌下来才有便宜筹码捡。但别急着抄底，等企稳信号。")
+    else:
+        lines.append(f"大盘{sh_chg:+.2f}%，不死不活。这种行情最磨人，管住手别乱动。")
+
+    # 板块大白话
+    has_semi = any("半导体" in s.get("name","") or "芯片" in s.get("name","") for s in leading)
+    has_oil = any("油气" in s.get("name","") or "石油" in s.get("name","") for s in leading)
+
+    if has_semi:
+        lines.append("半导体今天又支棱起来了。长鑫科技IPO这个事不是一天两天的利好，是产业大逻辑。但别追高，回调买更舒服。")
+    if has_oil:
+        lines.append("油气涨是因为打仗。这种钱不好赚——消息一来就跌，散户永远是最后知道的。赚了就跑别恋战。")
+
+    # 个股白话
+    for code, s in stocks.items():
+        if code in ("002156", "600584"):
+            lines.append(f"{s['name']}{s['price']}({s['change']:+.1f}%)。花旗给的目标价摆在那，说明机构中长期看好。但咱小散别全仓干，分批买。")
+        elif code == "601857":
+            lines.append(f"中国石油{s['price']}({s['change']:+.1f}%)。大块头涨起来慢但稳，适合当压舱石。股息率5%比存银行强。")
+
+    # 给散户的忠告
+    lines.append("给散户一句话：别人贪婪我恐惧，别人恐惧我贪婪。但大部分人做不到——因为大部分人没有仓位管理意识。")
+
+    return "\n".join(lines)
+
+
+# ===== 模拟仓位汇总 =====
+
+def sim_portfolio_view(stocks_data):
+    """生成三个交易员的模拟仓位盈亏汇总"""
+    lines = ["━━━ 💼 模拟仓位实况（每人均3万） ━━━"]
+
+    for trader_key in ["yangjia", "huarong", "zhaolaoge"]:
+        result = calc_trader_pnl(trader_key, stocks_data)
+        if not result:
+            continue
+
+        pnl_sign = "+" if result["total_pnl"] >= 0 else ""
+        lines.append(f"\n【{result['name']}】 总资产{result['total_value']:.0f}元 ({pnl_sign}{result['total_pnl']:.0f}元, {pnl_sign}{result['total_pnl_pct']:.2f}%)")
+
+        for pos in result["positions"]:
+            p_sign = "+" if pos["pnl"] >= 0 else ""
+            lines.append(f"  {pos['name']}({pos['code']}): {pos['shares']}股 @成本{pos['cost']} → 现价{pos['price']} | 市值{pos['market_value']:.0f} | {p_sign}{pos['pnl']:.0f}元({p_sign}{pos['pnl_pct']:.1f}%)")
+
+        lines.append(f"  现金: {result['cash']:.0f}元")
+
+    return "\n".join(lines)
+
+
 # ===== 邮件发送 =====
 
 def send_email(subject, body):
@@ -628,13 +773,15 @@ def build_report(data):
 """
 
     body = header + "\n" \
+           + sim_portfolio_view(data.get("stocks", {})) + "\n\n" \
            + yangjia_view(data, cycle, temp) + "\n\n" \
            + huarong_view(data, cycle, temp) + "\n\n" \
            + zhaolaoge_view(data, cycle, temp) + "\n\n" \
            + zhangyidong_view(data, cycle, temp) + "\n\n" \
            + xunyugen_view(data, cycle, temp) + "\n\n" \
            + gaoshanwen_view(data, cycle, temp) + "\n\n" \
-           + fupeng_view(data, cycle, temp)
+           + fupeng_view(data, cycle, temp) + "\n\n" \
+           + laoai_view(data, cycle, temp)
 
     return subject, body
 

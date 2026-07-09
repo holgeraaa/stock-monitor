@@ -25,15 +25,16 @@ GitHub Actions 运行 monitor.py
 
 ## 外部定时器配置（自动每半小时推送必做）
 
-> **当前选定方案：小米手机 MacroDroid 自动化**（详见 `phone-trigger-guide.md`）。
-> 手机装 MacroDroid，定时 POST 调 GitHub dispatch 即可，关对话 App 也能推。
-> 备选：cron-job.org 云端定时（最稳）、或联想 T2 NAS 跑 Docker 容器（`nas-trigger/`）。
+> **当前选定方案：小米手机 Termux + curl**（开源、token 仅存本机，详见 `termux-trigger/setup.md`）。
+> 手机装开源 Termux，crond 每30分钟 POST 调 GitHub dispatch，关对话 App 也能推。
+> 备选：MacroDroid 自动化（`phone-trigger-guide.md`）、cron-job.org 云端定时（最稳）、联想 T2 NAS 跑 Docker 容器（`nas-trigger/`）。
 
-1. 打开 https://cron-job.org 注册，新建 job（最省心、最可靠的云端方案）
-2. URL 填一个能触发本仓库 workflow 的中转地址（见下），或在本机 crontab 里跑 `trigger.sh`
-3. 频率：每 30 分钟；时间窗口：周一至周五 09:30–11:30 / 13:00–15:00（脚本内部也会再判一次交易时段）
-
-`trigger.sh` 需设置环境变量 `GITHUB_TOKEN`（有 workflow 权限的 token）。
+部署要点（详见 `termux-trigger/setup.md`）：
+1. F-Droid 装 **Termux**（+ 可选 **Termux:Boot** 开机自启）
+2. `pkg install curl cronie termux-services tzdata`
+3. token 写入 `~/.github_token`（chmod 600，细粒度单仓 Actions 权限）
+4. `sv-enable crond && sv up crond`；crontab 加 `*/30 1-7 * * 1-5 $HOME/trigger.sh`
+5. MIUI 给 Termux 设「电池无限制 + 自启动」防杀后台
 
 ## 标的池（仅沪深主板/ETF/可转债，不含创业板/科创板）
 

@@ -22,6 +22,14 @@ QQ_EMAIL = "51568894@qq.com"
 QQ_AUTH_CODE = "tgbicxdhkooibiad"
 TO_EMAIL = "51568894@qq.com"
 
+# 飞书自定义机器人 Webhook（务必用环境变量传入，勿硬编码进公开仓库）
+# 获取方式：飞书群 → 设置 → 群机器人 → 添加机器人 → 自定义机器人 → 复制 Webhook 地址
+# 本地测试：export FEISHU_WEBHOOK="https://open.feishu.cn/open-apis/bot/v2/hook/xxxx"
+# GitHub 部署：仓库 Settings → Secrets → 新增 FEISHU_WEBHOOK
+FEISHU_WEBHOOK = os.environ.get("FEISHU_WEBHOOK", "")
+# 飞书是否替代邮件（True=只发飞书, False=邮件+飞书双通道）
+FEISHU_ONLY = os.environ.get("FEISHU_ONLY", "false").lower() == "true"
+
 # ===== 模拟仓位（每个交易员3万元，从13:52时点开始） =====
 SIM_CAPITAL = 30000
 STATE_FILE = "portfolio_state.json"
@@ -858,6 +866,61 @@ def send_email(subject, body):
     return True
 
 
+# ===== 飞书机器人推送 =====
+
+def chunk_text(text, limit=1800):
+    """把超长文本按换行切分为不超过 limit 字符的块（避免飞书单条消息超限）"""
+    if len(text) <= limit:
+        return [text]
+    lines = text.split("\n")
+    chunks, cur = [], ""
+    for ln in lines:
+        if len(cur) + len(ln) + 1 > limit and cur:
+            chunks.append(cur)
+            cur = ln
+        else:
+            cur = (cur + "\n" + ln) if cur else ln
+    if cur:
+        chunks.append(cur)
+    return chunks
+
+
+def send_feishu(body, subject=""):
+    """通过飞书自定义机器人推送。按板块拆分多条消息，单条超长再切块。返回是否成功。"""
+    if not FEISHU_WEBHOOK:
+        print("⚠️ 未配置 FEISHU_WEBHOOK，跳过飞书推送")
+        return False
+
+    # 按行归并：行首为分隔符（━━━ 或 ═════）即开启新板块，标题与正文合为一条
+    sections, cur = [], []
+    for ln in body.split("\n"):
+        if ln.startswith("━━━") or ln.startswith("══════"):
+            if cur:
+                sections.append("\n".join(cur).strip("\n"))
+            cur = [ln]
+        else:
+            cur.append(ln)
+    if cur:
+        sections.append("\n".join(cur).strip("\n"))
+    sections = [s for s in sections if s.strip()]
+
+    ok = True
+    for i, sec in enumerate(sections):
+        text = (subject + "\n\n" + sec) if i == 0 else sec
+        for chunk in chunk_text(text, 1800):
+            payload = {"msg_type": "text", "content": {"text": chunk}}
+            try:
+                resp = requests.post(FEISHU_WEBHOOK, json=payload, timeout=10)
+                rj = resp.json()
+                if rj.get("code", 0) != 0:
+                    print(f"❌ 飞书推送被拒: {rj}")
+                    ok = False
+            except Exception as e:
+                print(f"❌ 飞书推送异常: {e}")
+                ok = False
+    return ok
+
+
 # ===== 主流程 =====
 
 def build_report(data):
@@ -924,12 +987,28 @@ def main():
     subject, body = build_report(data)
     print(f"标题: {subject}")
 
+    # 双通道推送：邮件 + 飞书（任一成功即视为送达）
+    email_ok = feishu_ok = False
+
+    if not FEISHU_ONLY:
+        try:
+            send_email(subject, body)
+            email_ok = True
+            print("✅ 邮件已发送")
+        except Exception as e:
+            print(f"❌ 邮件发送失败: {e}")
+
     try:
-        send_email(subject, body)
-        print(f"✅ 已发送")
+        feishu_ok = send_feishu(body, subject)
+        if feishu_ok:
+            print("✅ 飞书已推送")
+        elif FEISHU_ONLY:
+            print("❌ 飞书推送失败")
     except Exception as e:
-        print(f"❌ 发送失败: {e}")
-        raise
+        print(f"❌ 飞书推送异常: {e}")
+
+    if not email_ok and not feishu_ok:
+        raise SystemExit("❌ 所有推送渠道均失败")
 
 
 if __name__ == "__main__":

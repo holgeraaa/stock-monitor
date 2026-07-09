@@ -26,6 +26,10 @@ jobs:
         run: pip install requests
 
       - name: Run monitor
+        env:
+          FEISHU_WEBHOOK: ${{ secrets.FEISHU_WEBHOOK }}
+          # 如需只用飞书、停发邮件，取消下一行注释：
+          # FEISHU_ONLY: "true"
         run: python monitor.py
 
       - name: Commit state

@@ -1,0 +1,34 @@
+name: A股盯盘推送
+
+on:
+  schedule:
+    # 北京时间 9:07, 10:07, 11:07, 13:07, 14:07 (UTC+8 → UTC 需要-8)
+    # GitHub Actions 使用 UTC 时间
+    - cron: '7 1 * * 1-5'   # 9:07 CST
+    - cron: '7 2 * * 1-5'   # 10:07 CST
+    - cron: '7 3 * * 1-5'   # 11:07 CST
+    - cron: '7 5 * * 1-5'   # 13:07 CST
+    - cron: '7 6 * * 1-5'   # 14:07 CST
+  workflow_dispatch:
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run monitor
+        run: python monitor.py
+
+      - name: Log status
+        if: always()
+        run: echo "盯盘任务完成 - $(date -u)"

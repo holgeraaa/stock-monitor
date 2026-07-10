@@ -34,6 +34,8 @@ FEISHU_ONLY = os.environ.get("FEISHU_ONLY", "false").lower() == "true"
 SIM_CAPITAL = 30000
 STATE_FILE = "portfolio_state.json"
 CYCLE_ORDER = {"冰点": 0, "退潮": 1, "分歧": 2, "修复": 3, "主升": 4}
+# T+1 约束：今天买入的股数锁在 buy_locked 字段，当日不可卖；跨日自动解锁
+TRADE_DATE = now_beijing().strftime("%Y%m%d")
 
 import json
 import os
@@ -52,12 +54,22 @@ def save_state(state):
 
 def simulate_decision(trader_key, trader, cycle, stocks_data):
     """
-    模拟交易员加仓/减仓决策
+    模拟交易员加仓/减仓决策（遵守 A 股 T+1 规则）
+    - 今天买入的股数存入 buy_locked 字段，当日不可卖出
+    - 减仓时只卖 lock-free 部分
+    - 跨日自动解锁（trade_date 变了就清空 buy_locked）
     返回: (决策文本, 是否变更)
     """
     last_cycle = trader.get("last_cycle", "分歧")
     last_level = CYCLE_ORDER.get(last_cycle, 2)
     curr_level = CYCLE_ORDER.get(cycle, 2)
+
+    # T+1：检查是否跨日，跨日则解锁所有 buy_locked
+    trader_date = trader.get("trade_date", "")
+    if trader_date != TRADE_DATE:
+        for code in list(trader.get("buy_locked", {}).keys()):
+            trader["buy_locked"][code] = 0
+        trader["trade_date"] = TRADE_DATE
 
     decision = "持仓不动"
     changed = False
@@ -76,7 +88,7 @@ def simulate_decision(trader_key, trader, cycle, stocks_data):
         if best_code:
             price = stocks_data.get(best_code, {}).get("price", 0) or trader["positions"][best_code]["cost"]
             buy_amount = min(trader["cash"] * 0.5, 5000)
-            shares = (buy_amount // price // 100) * 100  # 整百股
+            shares = int(buy_amount // price // 100) * 100  # 整百股
             if shares >= 100:
                 cost = shares * price
                 trader["cash"] -= cost
@@ -85,33 +97,43 @@ def simulate_decision(trader_key, trader, cycle, stocks_data):
                 total_shares = pos["shares"] + shares
                 pos["cost"] = (pos["shares"] * pos["cost"] + cost) / total_shares
                 pos["shares"] = total_shares
-                decision = f"加仓 | {pos['name']}买{shares}股@{price:.2f}"
+                # T+1：锁仓
+                locked = trader.setdefault("buy_locked", {}).get(best_code, 0)
+                trader["buy_locked"][best_code] = locked + shares
+                decision = f"加仓 | {pos['name']}买{shares}股@{price:.2f} [T+1锁仓]"
                 changed = True
             else:
                 decision = "持仓不动(现金不足1手)"
 
-    # 情绪降温 → 减仓
+    # 情绪降温 → 减仓（只卖 lock-free 部分，遵守 T+1）
     elif curr_level < last_level:
-        # 卖最弱持仓的30%
+        # 找最弱持仓（且减去锁仓后仍有可卖）
         weak_code = None
         weak_chg = 100
         for code, pos in trader["positions"].items():
+            locked = trader.get("buy_locked", {}).get(code, 0)
+            available = pos["shares"] - locked
+            if available < 100:
+                continue  # 锁仓后无可卖整手
             chg = stocks_data.get(code, {}).get("change", 0)
-            if chg < weak_chg and pos["shares"] >= 100:
+            if chg < weak_chg:
                 weak_chg = chg
                 weak_code = code
 
         if weak_code:
             price = stocks_data.get(weak_code, {}).get("price", 0) or trader["positions"][weak_code]["cost"]
             pos = trader["positions"][weak_code]
-            sell_shares = int(pos["shares"] * 0.3 / 100) * 100
+            locked = trader.get("buy_locked", {}).get(weak_code, 0)
+            available = pos["shares"] - locked
+            sell_shares = int(available * 0.3 / 100) * 100
             if sell_shares >= 100:
                 trader["cash"] += sell_shares * price
                 pos["shares"] -= sell_shares
-                decision = f"减仓 | {pos['name']}卖{sell_shares}股@{price:.2f}"
+                decision = f"减仓 | {pos['name']}卖{sell_shares}股@{price:.2f} [T+1: 锁{locked}股不可卖]"
                 changed = True
                 if pos["shares"] == 0:
                     del trader["positions"][weak_code]
+                    trader.setdefault("buy_locked", {}).pop(weak_code, None)
 
     trader["last_cycle"] = cycle
     return decision, changed
@@ -788,13 +810,18 @@ def sim_portfolio_view(stocks_data, cycle):
         if not result:
             continue
 
+        trader = state["traders"].get(trader_key, {})
+        locked = trader.get("buy_locked", {})
+
         pnl_sign = "+" if result["total_pnl"] >= 0 else ""
         lines.append(f"\n【{result['name']}】 总资产{result['total_value']:.0f}元 ({pnl_sign}{result['total_pnl']:.0f}元, {pnl_sign}{result['total_pnl_pct']:.2f}%)")
         lines.append(f"  📌 操作: {decisions[trader_key]}")
 
         for pos in result["positions"]:
             p_sign = "+" if pos["pnl"] >= 0 else ""
-            lines.append(f"  {pos['name']}({pos['code']}): {pos['shares']}股 @成本{pos['cost']:.2f} → 现价{pos['price']:.2f} | 市值{pos['market_value']:.0f} | {p_sign}{pos['pnl']:.0f}元({p_sign}{pos['pnl_pct']:.1f}%)")
+            lock = locked.get(pos["code"], 0)
+            t1_tag = f" [T+1锁{lock}股]" if lock > 0 else ""
+            lines.append(f"  {pos['name']}({pos['code']}): {pos['shares']}股{t1_tag} @成本{pos['cost']:.2f} → 现价{pos['price']:.2f} | 市值{pos['market_value']:.0f} | {p_sign}{pos['pnl']:.0f}元({p_sign}{pos['pnl_pct']:.1f}%)")
 
         lines.append(f"  现金: {result['cash']:.0f}元")
 

@@ -1,0 +1,30 @@
+name: 加密货币盯盘推送
+
+on:
+  schedule:
+    # 早中晚各一次（UTC 时间 → 北京时间）
+    # 07:00 北京 = 23:00 UTC(前一天) → 早盘
+    # 12:00 北京 = 04:00 UTC → 午盘
+    # 18:00 北京 = 10:00 UTC → 晚盘
+    - cron: '0 23 * * *'   # 北京 07:00 早盘
+    - cron: '0 4 * * *'    # 北京 12:00 午盘
+    - cron: '0 10 * * *'   # 北京 18:00 晚盘
+  workflow_dispatch:
+
+jobs:
+  crypto-monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run crypto monitor
+        run: python crypto_monitor.py

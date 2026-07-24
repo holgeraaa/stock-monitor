@@ -243,7 +243,7 @@ def fetch_market_data():
             params={
                 "fltt": 2,
                 "fields": "f2,f3,f4,f5,f6,f7,f15,f16,f17,f18,f12,f14",
-                "secids": "1.000001,0.399001,0.399006,1.601857,1.600584,0.002156,0.159949",
+                "secids": "1.000001,0.399001,0.399006,1.601857,1.600584,0.002156,0.159949,1.515050",
             },
             timeout=10,
             headers={"User-Agent": "Mozilla/5.0"}
@@ -269,7 +269,7 @@ def fetch_market_data():
                     data["sz_change"] = f"{change_pct:+.2f}" if change_pct else "0"
                 elif code == "399006":
                     data["cyb_index"] = f"{price:.0f}" if price else "N/A"
-                elif code in ["601857", "600584", "002156", "159949"]:
+                elif code in ["601857", "600584", "002156", "159949", "515050"]:
                     detail = {
                         "name": name, "price": price, "change": change_pct,
                         "high": high, "low": low, "turnover": turnover
@@ -517,6 +517,8 @@ def huarong_view(data, cycle, temp):
                 opportunities.append(f"长电科技{price}({chg:+.1f}%)。回调不是坏事，给没上车的人机会。花旗110元目标摆在那。")
         elif code == "002156" and price:
             opportunities.append(f"通富微电{price}({chg:+.1f}%)。封测双雄之一，花旗目标80元。和长电比还在低位，补涨空间更大。")
+        elif code == "515050" and price:
+            opportunities.append(f"通信ETF{price}({chg:+.1f}%)。AI算力通信主线ETF，重仓新易盛/中际旭创。主力持续净流入，逢跌就是低吸机会，关注1.045支撑。")
 
     # 4. 可转债
     opportunities.append("可转债ETF(511380)。震荡市里攻守兼备，融资持续净买入。别人恐慌时这是避风港。")
@@ -777,6 +779,8 @@ def laoai_view(data, cycle, temp):
             lines.append(f"{s['name']}{s['price']}({s['change']:+.1f}%)。花旗给的目标价摆在那，说明机构中长期看好。但咱小散别全仓干，分批买。")
         elif code == "601857":
             lines.append(f"中国石油{s['price']}({s['change']:+.1f}%)。大块头涨起来慢但稳，适合当压舱石。股息率5%比存银行强。")
+        elif code == "515050":
+            lines.append(f"通信ETF{s['price']}({s['change']:+.1f}%)。AI算力主线，重仓CPO龙头。主力逆势净流入说明机构在吸筹，逢跌分批买。")
 
     # 给散户的忠告
     lines.append("给散户一句话：别人贪婪我恐惧，别人恐惧我贪婪。但大部分人做不到——因为大部分人没有仓位管理意识。")

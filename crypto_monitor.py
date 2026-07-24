@@ -21,33 +21,84 @@ QQ_EMAIL = "51568894@qq.com"
 QQ_AUTH_CODE = "tgbicxdhkooibiad"
 TO_EMAIL = "51568894@qq.com"
 
-# Binance K线 API（公开免key，GitHub Actions 美国机房可访问）
-BINANCE_KLINES = "https://api.binance.com/api/v3/klines"
+# ===== 数据源（多 fallback：Binance主域 → Binance.us → Coinbase → CoinCap） =====
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
 # 币种配置
 COINS = {
-    "BTC": {"symbol": "BTCUSDT", "name": "比特币", "decimals": 0},
-    "ETH": {"symbol": "ETHUSDT", "name": "以太坊", "decimals": 2},
+    "BTC": {"symbol": "BTCUSDT", "name": "比特币", "decimals": 0, "coingecko_id": "bitcoin", "coinbase": "BTC-USD"},
+    "ETH": {"symbol": "ETHUSDT", "name": "以太坊", "decimals": 2, "coingecko_id": "ethereum", "coinbase": "ETH-USD"},
 }
 
 
-def fetch_klines(symbol, interval="1d", limit=220):
+def fetch_klines(coin_key, limit=220):
     """
-    抓取 Binance K线数据
-    返回: list of [open_time, open, high, low, close, volume, ...]
+    多数据源 fallback 抓取日线 K线
+    返回: list of [timestamp, open, high, low, close, volume]
     """
+    cfg = COINS[coin_key]
+
+    # 源1: Binance 主域
     try:
         resp = requests.get(
-            BINANCE_KLINES,
-            params={"symbol": symbol, "interval": interval, "limit": limit},
-            timeout=15,
-            headers=HEADERS,
+            "https://api.binance.com/api/v3/klines",
+            params={"symbol": cfg["symbol"], "interval": "1d", "limit": limit},
+            timeout=10, headers=HEADERS,
         )
-        return resp.json()
-    except Exception as e:
-        print(f"⚠️ {symbol} K线抓取异常: {e}")
-        return None
+        if resp.status_code == 200:
+            return resp.json()
+    except:
+        pass
+
+    # 源2: Binance.us 备用
+    try:
+        resp = requests.get(
+            "https://api.binance.us/api/v3/klines",
+            params={"symbol": cfg["symbol"], "interval": "1d", "limit": limit},
+            timeout=10, headers=HEADERS,
+        )
+        if resp.status_code == 200:
+            return resp.json()
+    except:
+        pass
+
+    # 源3: Coinbase Exchange API（美国合规，GitHub 可访问）
+    try:
+        resp = requests.get(
+            f"https://api.exchange.coinbase.com/products/{cfg['coinbase']}/candles",
+            params={"granularity": 86400},
+            timeout=10, headers=HEADERS,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            # Coinbase 返回 [time, low, high, open, close, volume]，需转成 Binance 格式
+            klines = []
+            for row in sorted(data[-limit:], key=lambda x: x[0]):
+                klines.append([row[0]*1000, str(row[3]), str(row[2]), str(row[1]), str(row[4]), str(row[5])])
+            return klines
+    except:
+        pass
+
+    # 源4: CoinCap（纯价格历史，无OHLC，用close模拟）
+    try:
+        resp = requests.get(
+            f"https://api.coincap.io/v2/assets/{cfg['coingecko_id']}/history",
+            params={"interval": "d1"},
+            timeout=10, headers=HEADERS,
+        )
+        if resp.status_code == 200:
+            data = resp.json().get("data", [])
+            klines = []
+            for item in data[-limit:]:
+                ts = int(item.get("time", 0))
+                price = float(item.get("priceUsd", 0))
+                if price:
+                    klines.append([ts*1000, str(price), str(price), str(price), str(price), "0"])
+            return klines
+    except:
+        pass
+
+    return None
 
 
 def calc_sma(closes, period):
@@ -112,7 +163,7 @@ def calc_stoch(klines, k_period=14, d_period=3):
 def analyze_coin(coin_key):
     """分析单个币种，返回关键位置数据"""
     cfg = COINS[coin_key]
-    klines = fetch_klines(cfg["symbol"], "1d", 220)
+    klines = fetch_klines(coin_key, 220)
     if not klines or not isinstance(klines, list):
         return None
 
